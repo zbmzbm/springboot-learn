@@ -1,0 +1,5 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.example.springbootgray.apiversion.WebConfig,\
+com.example.springbootgray.gray.LoadBalancerConfiguration
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.example.springbootgray.gray.GrayscaleEnvPostProcessor
