@@ -32,6 +32,4 @@ public class LoadBalancerProperties {
      * 权重比例,百分多少从灰度版本取
      */
     private Integer weight;
-
-    private List<String> priorIpPattern = new ArrayList<>();
 }

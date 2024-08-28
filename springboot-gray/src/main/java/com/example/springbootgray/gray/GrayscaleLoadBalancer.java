@@ -12,7 +12,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.PatternMatchUtils;
 import reactor.core.publisher.Mono;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -43,18 +46,6 @@ public class GrayscaleLoadBalancer implements ReactorServiceInstanceLoadBalancer
         if (CollectionUtils.isEmpty(instances)) {
             return new EmptyResponse();
         }
-        // 指定ip则返回满足ip的服务
-        List<String> priorIpPattern = LoadBalancerProperties.getPriorIpPattern();
-        if (!priorIpPattern.isEmpty()) {
-            String[] priorIpPatterns = priorIpPattern.toArray(new String[0]);
-            List<ServiceInstance> priorIpInstances = instances.stream().filter(
-                    (i -> PatternMatchUtils.simpleMatch(priorIpPatterns, i.getHost()))
-            ).collect(Collectors.toList());
-            if (!priorIpInstances.isEmpty()) {
-                instances = priorIpInstances;
-            }
-        }
-
         // 获取灰度版本号
         DefaultRequestContext context = (DefaultRequestContext) request.getContext();
         RequestData requestData = (RequestData) context.getClientRequest();
@@ -95,27 +86,16 @@ public class GrayscaleLoadBalancer implements ReactorServiceInstanceLoadBalancer
 
 
     public Response<ServiceInstance> selectFromSets(List<ServiceInstance> instances, List<ServiceInstance> greyInstances) {
-        Random rand = new Random();
-        // 生成 0 到 9 之间的随机数，用于按照 80% 和 20% 的比例确定从哪个集合取数
-        int randomValue = rand.nextInt(100);
-        if(LoadBalancerProperties.getWeight() !=null){
-            if (randomValue < LoadBalancerProperties.getWeight()) {
-                if (!greyInstances.isEmpty()) {
-                    int index = rand.nextInt(greyInstances.size());
-                    return new DefaultResponse(greyInstances.get(index));
-                }
-            } else {
-                if (!instances.isEmpty()) {
-                    int index = rand.nextInt(instances.size());
-                    return new DefaultResponse(instances.get(index));
-                }
-            }
-        }
-        // 如果集合 A 和集合 B 都为空，则返回A
-        // 挑选随机节点返回
-        int randomIndex = ThreadLocalRandom.current().nextInt(instances.size());
-        ServiceInstance instance = instances.get(randomIndex % instances.size());
-        return new DefaultResponse(instance);
+        Integer weight = LoadBalancerProperties.getWeight();
+        Map<List<ServiceInstance>, Integer> nodes =new HashMap<>();
+        nodes.put(greyInstances,weight);
+        nodes.put(instances,100-weight);
+        SmoothWeightedRoundRobin smoothWeightedRoundRobin= new SmoothWeightedRoundRobin(nodes);
+        Node node = smoothWeightedRoundRobin.select();
+        List<ServiceInstance> serverName = node.getServerName();
+        Random random = new Random();
+        int randomIndex = random.nextInt(serverName.size());
+        return new DefaultResponse(serverName.get(randomIndex));
     }
 
 }
