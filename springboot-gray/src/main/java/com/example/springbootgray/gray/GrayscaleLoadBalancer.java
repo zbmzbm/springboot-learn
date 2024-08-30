@@ -84,13 +84,16 @@ public class GrayscaleLoadBalancer implements ReactorServiceInstanceLoadBalancer
         return new DefaultResponse(instance);
     }
 
+    static SmoothWeightedRoundRobin smoothWeightedRoundRobin;
 
     public Response<ServiceInstance> selectFromSets(List<ServiceInstance> instances, List<ServiceInstance> greyInstances) {
-        Integer weight = LoadBalancerProperties.getWeight();
-        Map<List<ServiceInstance>, Integer> nodes =new HashMap<>();
-        nodes.put(greyInstances,weight);
-        nodes.put(instances,100-weight);
-        SmoothWeightedRoundRobin smoothWeightedRoundRobin= new SmoothWeightedRoundRobin(nodes);
+        if (smoothWeightedRoundRobin == null) {
+            Integer weight = LoadBalancerProperties.getWeight();
+            Map<List<ServiceInstance>, Integer> nodes =new HashMap<>();
+            nodes.put(greyInstances,weight);
+            nodes.put(instances,100-weight);
+            smoothWeightedRoundRobin= new SmoothWeightedRoundRobin(nodes);
+        }
         Node node = smoothWeightedRoundRobin.select();
         List<ServiceInstance> serverName = node.getServerName();
         Random random = new Random();
